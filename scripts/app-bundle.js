@@ -1,7 +1,32 @@
+define('interfaces/sites',["require", "exports"], function (require, exports) {
+    "use strict";
+});
+
+define('interfaces/export',["require", "exports"], function (require, exports) {
+    "use strict";
+});
+
 define('pass-generator',["require", "exports"], function (require, exports) {
     "use strict";
     var PasswordGenerator = (function () {
         function PasswordGenerator() {
+            this.defaultSites = [
+                { seed: "amazon", url: "https://www.amazon.com/", displayName: "Amazon" },
+                { seed: "apple", url: "https://www.apple.com/", displayName: "Apple" },
+                { seed: "box", url: "https://app.box.com/login/", displayName: "Box" },
+                { seed: "ebay", url: "https://signin.ebay.com/", displayName: "Ebay" },
+                { seed: "facebook", url: "https://www.facebook.com/", displayName: "Facebook" },
+                { seed: "google", url: "https://www.google.com/", displayName: "Google" },
+                { seed: "linkedin", url: "https://www.linkedin.com/", displayName: "LinkedIn" },
+                { seed: "nytimes", url: "https://myaccount.nytimes.com/", displayName: "NYTimes" },
+                { seed: "outlook", url: "https://www.outlook.com/", displayName: "Outlook" },
+                { seed: "paypal", url: "https://www.paypal.com/", displayName: "PayPal" },
+                { seed: "tumblr", url: "https://www.tumblr.com/", displayName: "Tumblr" },
+                { seed: "twitter", url: "https://twitter.com/", displayName: "Twitter" },
+                { seed: "wikipedia", url: "https://www.wikipedia.org/", displayName: "Wikipedia" },
+                { seed: "wordpress", url: "https://www.wordpress.com/", displayName: "WordPress" },
+                { seed: "yahoo", url: "https://login.yahoo.com/", displayName: "Yahoo" }
+            ];
             this.b64pad = "";
             this.chrsz = 8;
         }
@@ -92,14 +117,6 @@ define('pass-generator',["require", "exports"], function (require, exports) {
     exports.PasswordGenerator = PasswordGenerator;
 });
 
-define('interfaces/sites',["require", "exports"], function (require, exports) {
-    "use strict";
-});
-
-define('interfaces/export',["require", "exports"], function (require, exports) {
-    "use strict";
-});
-
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -111,46 +128,65 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 define('app',["require", "exports", "aurelia-framework", "./pass-generator"], function (require, exports, aurelia_framework_1, pass_generator_1) {
     "use strict";
+    var itemsKey = "seedsAndSites";
     var App = (function () {
         function App(passgen) {
             this.passgen = passgen;
+            this.isPasswordMasked = true;
+            this.listHasChanged = false;
+            this.customSite = { url: "", seed: "", displayName: "" };
             this.sites = [];
-            this.message = 'Hello World!';
-            this.sites = [
-                { seed: "amazon", url: "https://www.amazon.com/", displayName: "Amazon" },
-                { seed: "apple", url: "https://www.apple.com/", displayName: "Apple" },
-                { seed: "box", url: "https://app.box.com/login/", displayName: "Box" },
-                { seed: "ebay", url: "https://signin.ebay.com/", displayName: "Ebay" },
-                { seed: "facebook", url: "https://www.facebook.com/", displayName: "Facebook" },
-                { seed: "google", url: "https://www.google.com/", displayName: "Google" },
-                { seed: "linkedin", url: "https://www.linkedin.com/", displayName: "LinkedIn" },
-                { seed: "nytimes", url: "https://myaccount.nytimes.com/", displayName: "NYTimes" },
-                { seed: "outlook", url: "https://www.outlook.com/", displayName: "Outlook" },
-                { seed: "paypal", url: "https://www.paypal.com/", displayName: "PayPal" },
-                { seed: "tumblr", url: "https://www.tumblr.com/", displayName: "Tumblr" },
-                { seed: "twitter", url: "https://twitter.com/", displayName: "Twitter" },
-                { seed: "wikipedia", url: "https://www.wikipedia.org/", displayName: "Wikipedia" },
-                { seed: "wordpress", url: "https://www.wordpress.com/", displayName: "WordPress" },
-                { seed: "yahoo", url: "https://login.yahoo.com/", displayName: "Yahoo" }
-            ];
+            this.sites = this.loadSeeds();
         }
+        Object.defineProperty(App.prototype, "passwordType", {
+            get: function () {
+                return this.isPasswordMasked ? 'password' : 'text';
+            },
+            enumerable: true,
+            configurable: true
+        });
         App.prototype.setvals = function (mypassValue) {
-            var mypass = document.getElementById("main");
-            document.getElementById("customRoot").setAttribute('value', mypassValue);
             for (var i = 0; i < this.sites.length; i++) {
-                this.passwordHash(this.sites[i].seed, mypass);
+                this.passwordHash(this.sites[i].seed, this.myPassword);
             }
         };
         App.prototype.passwordHash = function (passbox, master) {
-            var newpass = this.passgen.b64_sha1(master.value + ':' + passbox);
-            newpass = newpass.substr(0, 8) + '1a';
-            if (master.value.length == 0 || master.value == null) {
-                newpass = '';
-            }
+            var newpass = this.passgen.b64_sha1(master + ':' + passbox);
+            newpass = newpass.substr(0, 8) + '1a' || "";
             document.getElementById(passbox).setAttribute('value', newpass);
+        };
+        App.prototype.addCustomSeedToList = function () {
+            this.customSite.seed = this.customSite.displayName.toLowerCase();
+            this.sites.push(this.customSite);
+            this.setEmptyCustomSite();
+            this.listHasChanged = true;
+        };
+        App.prototype.deleteSeed = function (site) {
+            this.sites.splice(this.sites.indexOf(site), 1);
+            this.listHasChanged = true;
+        };
+        App.prototype.setEmptyCustomSite = function () {
+            this.customSite = {
+                seed: "",
+                url: "",
+                displayName: ""
+            };
+        };
+        App.prototype.loadSeeds = function () {
+            var items = localStorage.getItem(itemsKey);
+            return items ? JSON.parse(items) : this.passgen.defaultSites;
+        };
+        App.prototype.saveSeeds = function () {
+            localStorage.setItem(itemsKey, JSON.stringify(this.sites));
+            this.listHasChanged = false;
         };
         return App;
     }());
+    __decorate([
+        aurelia_framework_1.computedFrom("isPasswordMasked"),
+        __metadata("design:type", String),
+        __metadata("design:paramtypes", [])
+    ], App.prototype, "passwordType", null);
     App = __decorate([
         aurelia_framework_1.inject(pass_generator_1.PasswordGenerator),
         __metadata("design:paramtypes", [pass_generator_1.PasswordGenerator])
@@ -196,5 +232,5 @@ define('resources/index',["require", "exports"], function (require, exports) {
     exports.configure = configure;
 });
 
-define('text!app.html', ['module'], function(module) { module.exports = "<template>\r\n  <div repeat.for=\"site of sites\">\r\n    <span>${site.displayName}</span>\r\n    <input type=\"text\" class=\"site-pass-input\" />\r\n  </div>\r\n</template>\r\n"; });
+define('text!app.html', ['module'], function(module) { module.exports = "<template>\r\n  <p>\r\n    Using the same password for multiple email, shopping and social networking websites is risky, it means that a security breach\r\n    at one website will compromise all your accounts, possibly even leading to identity theft.\r\n  </p>\r\n  <p>\r\n    So, the idea is that you memorise just one, reasonably long/secure master password and use that to generate a set of non-dictionary\r\n    passwords. Copy and paste the new password(s) into the website and set your web browser to remember them.\r\n  </p>\r\n  <p>All the websites get different passwords, but you only have to remember one!</p>\r\n  <form role=\"form\" submit.delete=\"setVals()\">\r\n    <label for=\"mainPassBox\">Password</label>\r\n    <input type.bind=\"passwordType\" value.bind=\"myPassword\" id=\"mainPassBox\" />\r\n    <input type=\"checkbox\" checked.bind=\"isPasswordMasked\" id=\"isPassMaskCBox\" />\r\n    <label for=\"isPassMaskCBox\">show/hide Password</label>\r\n    <button>Set Paswords</button>\r\n  </form>\r\n  <div repeat.for=\"site of sites\">\r\n    <label for.bind=\"site.seed\">${site.displayName}</label>\r\n    <input id.bind=\"site.seed\" type=\"text\" class=\"site-pass-input\" />\r\n    <button click.delegate=\"deleteSeed(site)\">Delete</button>\r\n  </div>\r\n  <p>Here you can add new sites to generate passwords</p>\r\n  <form role=\"form\" submit.delegate=\"addCustomSeedToList()\">\r\n    <label for=\"siteName\">Site name</label>\r\n    <input value.bind=\"customSite.displayName\" id=\"siteName\" type=\"text\" required/>\r\n    <label for=\"sitUrl\">Url</label>\r\n    <input value.bind=\"customSite.url\" id=\"siteUrl\" type=\"url\" />\r\n    <button type=\"submit\">Add Custom Site</button>\r\n  </form>\r\n  <div if.bind=\"listHasChanged\">\r\n    <p>You can save your custom Sites List to your browser memory</p>\r\n    <button click.delegate=\"saveSeeds()\">Remember Custom List</button>\r\n  </div>\r\n</template>\r\n"; });
 //# sourceMappingURL=app-bundle.js.map

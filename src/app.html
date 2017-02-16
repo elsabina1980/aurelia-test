@@ -1,6 +1,35 @@
 <template>
+  <p>
+    Using the same password for multiple email, shopping and social networking websites is risky, it means that a security breach
+    at one website will compromise all your accounts, possibly even leading to identity theft.
+  </p>
+  <p>
+    So, the idea is that you memorise just one, reasonably long/secure master password and use that to generate a set of non-dictionary
+    passwords. Copy and paste the new password(s) into the website and set your web browser to remember them.
+  </p>
+  <p>All the websites get different passwords, but you only have to remember one!</p>
+  <form role="form" submit.delete="setVals()">
+    <label for="mainPassBox">Password</label>
+    <input type.bind="passwordType" value.bind="myPassword" id="mainPassBox" />
+    <input type="checkbox" checked.bind="isPasswordMasked" id="isPassMaskCBox" />
+    <label for="isPassMaskCBox">show/hide Password</label>
+    <button>Set Paswords</button>
+  </form>
   <div repeat.for="site of sites">
-    <span>${site.displayName}</span>
-    <input type="text" class="site-pass-input" />
+    <label for.bind="site.seed">${site.displayName}</label>
+    <input id.bind="site.seed" type="text" class="site-pass-input" />
+    <button click.delegate="deleteSeed(site)">Delete</button>
+  </div>
+  <p>Here you can add new sites to generate passwords</p>
+  <form role="form" submit.delegate="addCustomSeedToList()">
+    <label for="siteName">Site name</label>
+    <input value.bind="customSite.displayName" id="siteName" type="text" required/>
+    <label for="sitUrl">Url</label>
+    <input value.bind="customSite.url" id="siteUrl" type="url" />
+    <button type="submit">Add Custom Site</button>
+  </form>
+  <div if.bind="listHasChanged">
+    <p>You can save your custom Sites List to your browser memory</p>
+    <button click.delegate="saveSeeds()">Remember Custom List</button>
   </div>
 </template>
