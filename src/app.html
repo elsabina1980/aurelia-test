@@ -1,4 +1,6 @@
 <template>
-  <h1>${message}</h1>
-  <p>c</p>
+  <div repeat.for="site of sites">
+    <span>${site.displayName}</span>
+    <input type="text" class="site-pass-input" />
+  </div>
 </template>
