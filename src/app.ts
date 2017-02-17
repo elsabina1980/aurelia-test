@@ -20,7 +20,7 @@ export class App {
   get passwordType(): string {
     return this.isPasswordMasked ? 'password' : 'text';
   }
-  setvals(mypassValue: string) {
+  setvals() {
     /*     	   Seed    masterpassword */
     for (var i = 0; i < this.sites.length; i++) {
       this.passwordHash(this.sites[i].seed, this.myPassword);
@@ -55,7 +55,7 @@ export class App {
     return items ? JSON.parse(items) : this.passgen.defaultSites;
   }
 
-  private saveSeeds(): void {
+  saveSeeds(): void {
     localStorage.setItem(itemsKey, JSON.stringify(this.sites));
     this.listHasChanged = false;
   }
