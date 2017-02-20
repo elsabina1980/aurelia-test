@@ -1,26 +1,29 @@
 import { autoinject, inject, computedFrom } from "aurelia-framework";
 import { PasswordGenerator } from "./pass-generator";
 import { ISites } from "./interfaces/export";
+import { User } from "./services/user";
+
 
 const itemsKey = "seedsAndSites";
-@inject(PasswordGenerator)
+@inject(PasswordGenerator, User)
 export class App {
-  constructor(private passgen: PasswordGenerator) {
-    // todo : dynamic get
-    this.sites = this.loadSeeds();
+  constructor(private passgen: PasswordGenerator, private user: User) {
   }
+
 
   isPasswordMasked: boolean = true;
   listHasChanged: boolean = false;
   customSite: ISites = { url: "", seed: "", displayName: "" };
   myPassword: string;
   sites: Array<ISites> = [];
+  
+  
 
   @computedFrom("isPasswordMasked")
   get passwordType(): string {
     return this.isPasswordMasked ? 'password' : 'text';
   }
-  setvals() {
+  setVals() {
     /*     	   Seed    masterpassword */
     for (var i = 0; i < this.sites.length; i++) {
       this.passwordHash(this.sites[i].seed, this.myPassword);
@@ -38,21 +41,16 @@ export class App {
     this.setEmptyCustomSite();
     this.listHasChanged = true;
   }
-  deleteSeed(site: ISites){
+  deleteSeed(site: ISites) {
     this.sites.splice(this.sites.indexOf(site), 1);
     this.listHasChanged = true;
   }
-  setEmptyCustomSite():void{
+  setEmptyCustomSite(): void {
     this.customSite = {
       seed: "",
       url: "",
       displayName: ""
     }
-  }
-  private loadSeeds(): any {
-    const items = localStorage.getItem(itemsKey);
-
-    return items ? JSON.parse(items) : this.passgen.defaultSites;
   }
 
   saveSeeds(): void {
