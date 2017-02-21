@@ -7,9 +7,7 @@ export class Firebase {
   }
   private isInitialized = false;
   firebaseRef = null;
-  defaultSeeds: Array<ISites>;
-
-
+  
   // This mostly gets called on subsequent page loads to determine
   // what the current status of the user is with "user" being an object
   // return by Firebase with credentials and other info inside of it
@@ -37,30 +35,26 @@ export class Firebase {
     return firebase.auth().signOut()
   }
 
-  getDefaultSeeds(isInitialized?: boolean): Promise<any> {
-    if (!isInitialized)
-      return this.firebaseRef.database().ref("passusers/defaultseedlist").once("value")
+  getDefaultSeeds(): Promise<any> {
+   return this.firebaseRef.database().ref("passusers/defaultseedlist").once("value")
+  }
 
-    this.firebaseRef.database().ref("passusers/defaultseedlist").once("value")
-      .then(r => {
-        this.defaultSeeds = JSON.parse(r.val());
-      });
-
+  getCustomSeedList(userId: string): Promise<any> {
+    return this.firebaseRef.database()
+      .ref(`passseedlists/${userId}`)
+      .once("value")
   }
 
   saveCustomSeedList(userId: string, seedList: Array<ISites>) {
-    firebase.database().ref('passseedlist/' + userId).set({
+    firebase.database().ref(`passseedlists/${userId}`).set({
+      lastChange: new Date().getTime(),
       seedList: JSON.stringify(seedList)
     });
-    
-  }
-  getCustomSeedList(userId: string): Promise<any> {
-    return this.firebaseRef.database()
-      .ref('passusers/seedList' + userId)
-      .once("value")
+    localStorage.setItem("localSeedList", JSON.stringify({lastChange: new Date().getTime(), seedList: seedList}));
   }
   writeUserTest(userId: string, name, email) {
     firebase.database().ref('passusers/' + userId).set({
+      lastChange: new Date().getTime(),
       username: name,
       email: email
     });
@@ -77,7 +71,7 @@ export class Firebase {
         messagingSenderId: "739446105290"
       }
       this.firebaseRef = firebase.initializeApp(config);
-      this.getDefaultSeeds(true)
+      this.getDefaultSeeds()
     }
   }
 }

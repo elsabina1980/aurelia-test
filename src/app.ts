@@ -16,8 +16,6 @@ export class App {
   customSite: ISites = { url: "", seed: "", displayName: "" };
   myPassword: string;
   sites: Array<ISites> = [];
-  
-  
 
   @computedFrom("isPasswordMasked")
   get passwordType(): string {

@@ -9,15 +9,15 @@
   </p>
   <p>All the websites get different passwords, but you only have to remember one!</p>
   
-   <a href="javascript:void(0);" click.delegate="login('google')" if.bind="!userLoggedIn">Login via Google</a>
-    <a href="javascript:void(0);" click.delegate="login('twiter')" if.bind="!userLoggedIn">Login via Twitter</a>
-    <a href="javascript:void(0);" click.delegate="login('facebook')" if.bind="!userLoggedIn">Login via Facebook</a>
-    <a href="javascript:void(0);" click.delegate="logout()" if.bind="userLoggedIn">Logout</a>
+   <a href="javascript:void(0);" click.delegate="user.login('google')" if.bind="!user.isLoggedIn">Login via Google</a>
+    <a href="javascript:void(0);" click.delegate="user.login('twiter')" if.bind="!user.isLoggedIn">Login via Twitter</a>
+    <a href="javascript:void(0);" click.delegate="user.login('facebook')" if.bind="!user.isLoggedIn">Login via Facebook</a>
+    <a href="javascript:void(0);" click.delegate="user.logout()" if.bind="user.isLoggedIn">Logout</a>
 
-    <div class="profile" if.bind="userLoggedIn && user">
-        <h1>${user.displayName}</h1>
-        <h2>${user.email}</h2>
-        <img src.bind="user.photoURL" if.bind="user.photoURL">
+    <div class="profile" if.bind="user.isLoggedIn && user">
+        <h1>${user.userData.displayName}</h1>
+        <h2>${user.userData.email}</h2>
+        <img src.bind="user.userData.photo" if.bind="user.userData.photo">
         <p>
           <button click.delegate="firebase.writeUserTest(firebase.user.uid, firebase.user.displayName, firebase.user.email)">Write test</button>
         </p>
@@ -31,7 +31,7 @@
     <button>Set Paswords</button>
   </form>
   
-  <div repeat.for="site of sites">
+  <div repeat.for="site of user.userData.seedList">
     <label for.bind="site.seed">${site.displayName}</label>
     <input id.bind="site.seed" type="text" class="site-pass-input" />
     <button click.delegate="deleteSeed(site)">Delete</button>

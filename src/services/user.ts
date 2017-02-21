@@ -1,4 +1,4 @@
-import { autoinject, computedFrom } from "aurelia-framework";
+import { autoinject } from "aurelia-framework";
 import { Firebase } from "./firebase";
 import { ISites, IUser } from "../interfaces/export";
 
@@ -7,47 +7,21 @@ var firebase;
 @autoinject
 export class User {
   constructor(private db: Firebase) {
+    this.initializeSeeds();
 
   }
-  private itemsKey = "seedsAndSites";
+
+  private itemsKey = "localSeedList";
   private authToken = null;
   private user = null;
-  isLoggedIn = firebase.auth().currentUser.uid ? true : false;;
-
-  @computedFrom("isLoggedIn")
-  get userData(): IUser {
-    const userData: IUser = {
-      displayName: "",
-      email: "",
-      photo: "",
-      seedList: null
-    }
-    let seedList: Array<ISites> = [];
-    if (!this.isLoggedIn) {
-      const defaultSeeds = this.db.defaultSeeds;
-      const localSeeds = localStorage.getItem(this.itemsKey);
-
-      userData.seedList = localSeeds ? JSON.parse(localSeeds) : defaultSeeds;
-      
-      return userData;
-      
-    } else {
-      userData.displayName = this.user.displayName;
-      userData.email = this.user.email;
-      userData.photo = this.user.photoURL;
-      this.db
-        .getCustomSeedList(this.user.uid)
-        .then(r => {
-          const customSeedList =  JSON.parse(r.val());
-          
-          if(customSeedList && customSeedList.length){
-            userData.seedList = customSeedList;
-          }
-          
-          return userData;
-        })
-    }
+  isLoggedIn: boolean = false;
+  userData: IUser = {
+    displayName: "",
+    email: "",
+    photo: "",
+    seedList: null
   }
+
   login(type: string) {
     this.db.login(type).then((result: any) => {
       // The token for this session
@@ -55,9 +29,25 @@ export class User {
 
       // The user object containing information about the current user
       this.user = result.user;
-
+      //this.db.firebaseRef.getInstance().setPersistenceEnabled(true);
       // Set a class variable to true to state we are logged in
+
       this.isLoggedIn = true;
+      this.userData = {
+        displayName: this.user.displayName,
+        email: this.user.email,
+        photo: this.user.photoURL,
+        seedList: null
+      }
+      this.db
+        .getCustomSeedList(this.user.uid)
+        .then(r => {
+          const serverSeedList = JSON.parse(r.val());
+          this.userData.seedList = serverSeedList && serverSeedList.seedList && serverSeedList.seedList.length
+            ? serverSeedList.seedList
+            : this.userData.seedList;
+        });
+
     }).catch(error => {
       let errorCode = error.code;
       let errorMessage = error.message;
@@ -72,5 +62,13 @@ export class User {
     }).catch(error => {
       throw new Error(error);
     });;
+  }
+
+  initializeSeeds() {
+    const localSeeds = localStorage.getItem(this.itemsKey);
+    this.db.getDefaultSeeds()
+      .then(r => {
+        this.userData.seedList = localSeeds ? JSON.parse(localSeeds) : JSON.parse(r.val());
+      });
   }
 }
