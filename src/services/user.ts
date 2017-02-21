@@ -14,6 +14,7 @@ export class User {
   private itemsKey = "localSeedList";
   private authToken = null;
   private user = null;
+  public defaultSeedList: Array<ISites> = JSON.parse("[{\"seed\": \"amazon\", \"url\": \"https://www.amazon.com/\", \"displayName\": \"Amazon\" }, { \"seed\": \"apple\", \"url\": \"https://www.apple.com/\", \"displayName\": \"Apple\" },{ \"seed\": \"box\", \"url\": \"https://app.box.com/login/\", \"displayName\": \"Box\" }, { \"seed\": \"ebay\", \"url\": \"https://signin.ebay.com/\", \"displayName\": \"Ebay\" } , { \"seed\": \"facebook\", \"url\": \"https://www.facebook.com/\", \"displayName\": \"Facebook\" }, { \"seed\": \"google\", \"url\": \"https://www.google.com/\", \"displayName\": \"Google\" }, { \"seed\": \"linkedin\", \"url\": \"https://www.linkedin.com/\", \"displayName\": \"LinkedIn\" }, { \"seed\": \"nytimes\", \"url\": \"https://myaccount.nytimes.com/\", \"displayName\": \"NYTimes\" }, { \"seed\": \"outlook\", \"url\": \"https://www.outlook.com/\", \"displayName\": \"Outlook\" }, { \"seed\": \"paypal\", \"url\": \"https://www.paypal.com/\", \"displayName\": \"PayPal\" }, { \"seed\": \"tumblr\", \"url\": \"https://www.tumblr.com/\", \"displayName\": \"Tumblr\" }, { \"seed\": \"twitter\", \"url\": \"https://twitter.com/\", \"displayName\": \"Twitter\" }, { \"seed\": \"wikipedia\", \"url\": \"https://www.wikipedia.org/\", \"displayName\": \"Wikipedia\" }, { \"seed\": \"wordpress\", \"url\": \"https://www.wordpress.com/\", \"displayName\": \"WordPress\" }, { \"seed\": \"yahoo\", \"url\": \"https://login.yahoo.com/\", \"displayName\": \"Yahoo\" }]");
   isLoggedIn: boolean = false;
   userData: IUser = {
     displayName: "",
@@ -43,9 +44,12 @@ export class User {
         .getCustomSeedList(this.user.uid)
         .then(r => {
           const serverSeedList = JSON.parse(r.val());
-          this.userData.seedList = serverSeedList && serverSeedList.seedList && serverSeedList.seedList.length
-            ? serverSeedList.seedList
-            : this.userData.seedList;
+          if (serverSeedList && serverSeedList.seedList && serverSeedList.seedList.length) {
+            this.userData.seedList = serverSeedList.seedList;
+          } else {
+            const localSeedList = this.db.getLocalSeedList();
+            this.userData.seedList = localSeedList || this.defaultSeedList;
+          }
         });
 
     }).catch(error => {
@@ -65,10 +69,14 @@ export class User {
   }
 
   initializeSeeds() {
-    const localSeeds = localStorage.getItem(this.itemsKey);
-    this.db.getDefaultSeeds()
-      .then(r => {
-        this.userData.seedList = localSeeds ? JSON.parse(localSeeds) : JSON.parse(r.val());
-      });
+    const localSeeds = JSON.parse(localStorage.getItem(this.itemsKey));
+    this.userData.seedList = localSeeds || this.defaultSeedList;
+    //TODO Try to Login ONInit
+
+    // this.db.getDefaultSeeds()
+    //   .then(r => {
+    //     let serverDefaultList = JSON.parse(r.val());
+    //     this.userData.seedList = serverDefaultList || localSeeds || this.defaultSeedList;
+    //   });
   }
 }

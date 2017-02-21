@@ -6,6 +6,7 @@ export class Firebase {
     this.initialized();
   }
   private isInitialized = false;
+  private itemsKey = "localSeedList";
   firebaseRef = null;
   
   // This mostly gets called on subsequent page loads to determine
@@ -45,6 +46,13 @@ export class Firebase {
       .once("value")
   }
 
+  getLocalSeedList(): Array<ISites>{
+     const localSeeds = JSON.parse(localStorage.getItem(this.itemsKey));
+     return localSeeds 
+     ? localSeeds.seedList
+     : null
+  }
+
   saveCustomSeedList(userId: string, seedList: Array<ISites>) {
     firebase.database().ref(`passseedlists/${userId}`).set({
       lastChange: new Date().getTime(),
@@ -71,7 +79,7 @@ export class Firebase {
         messagingSenderId: "739446105290"
       }
       this.firebaseRef = firebase.initializeApp(config);
-      this.getDefaultSeeds()
+      //this.getDefaultSeeds()
     }
   }
 }
