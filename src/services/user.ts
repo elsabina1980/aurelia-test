@@ -1,6 +1,6 @@
 import { autoinject } from "aurelia-framework";
 import { Firebase } from "./firebase";
-import { ISites, IUser } from "../interfaces/export";
+import { ISites, IUser, ISeedList } from "../interfaces/export";
 
 var firebase;
 
@@ -27,7 +27,6 @@ export class User {
     this.db.login(type).then((result: any) => {
       // The token for this session
       this.authToken = result.credential.accessToken;
-
       // The user object containing information about the current user
       this.user = result.user;
       //this.db.firebaseRef.getInstance().setPersistenceEnabled(true);
@@ -43,13 +42,7 @@ export class User {
       this.db
         .getCustomSeedList(this.user.uid)
         .then(r => {
-          const serverSeedList = JSON.parse(r.val());
-          if (serverSeedList && serverSeedList.seedList && serverSeedList.seedList.length) {
-            this.userData.seedList = serverSeedList.seedList;
-          } else {
-            const localSeedList = this.db.getLocalSeedList();
-            this.userData.seedList = localSeedList || this.defaultSeedList;
-          }
+          this.userData.seedList = r.seedList;
         });
 
     }).catch(error => {
@@ -67,10 +60,29 @@ export class User {
       throw new Error(error);
     });;
   }
+  saveSeedList(): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      const uid = this.user ? this.user.uid : null;
+      this.db.saveCustomSeedList(uid, this.userData.seedList).then(isChangeOnline => {
+        if (!isChangeOnline) {
+          this.db.saveLocalSeeds(this.userData.seedList, true);
+        }
+        resolve(true)
+      }).catch(r => {
+        this.db.saveLocalSeeds(this.userData.seedList, true);
+      })
+    })
+  }
+  private initializeSeeds() {
+    const localSeeds: ISeedList = this.db.getLocalSeedList();
 
-  initializeSeeds() {
-    const localSeeds = JSON.parse(localStorage.getItem(this.itemsKey));
-    this.userData.seedList = localSeeds || this.defaultSeedList;
+    if (!localSeeds) {
+      this.db.saveLocalSeeds(this.defaultSeedList, true);
+      this.userData.seedList = this.defaultSeedList;
+    } else {
+      this.userData.seedList = localSeeds.seedList;
+    }
+
     //TODO Try to Login ONInit
 
     // this.db.getDefaultSeeds()

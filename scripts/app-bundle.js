@@ -2,6 +2,14 @@ define('interfaces/sites',["require", "exports"], function (require, exports) {
     "use strict";
 });
 
+define('interfaces/user',["require", "exports"], function (require, exports) {
+    "use strict";
+});
+
+define('interfaces/seedList',["require", "exports"], function (require, exports) {
+    "use strict";
+});
+
 define('interfaces/export',["require", "exports"], function (require, exports) {
     "use strict";
 });
@@ -122,6 +130,7 @@ define('services/firebase',["require", "exports"], function (require, exports) {
     var Firebase = (function () {
         function Firebase() {
             this.isInitialized = false;
+            this.itemsKey = "localSeedList";
             this.firebaseRef = null;
             this.initialized();
         }
@@ -141,25 +150,64 @@ define('services/firebase',["require", "exports"], function (require, exports) {
         Firebase.prototype.logout = function () {
             return firebase.auth().signOut();
         };
-        Firebase.prototype.getDefaultSeeds = function (isInitialized) {
+        Firebase.prototype.getCustomSeedList = function (userId) {
             var _this = this;
-            if (!isInitialized)
-                return this.firebaseRef.database().ref("passusers/defaultseedlist").once("value");
-            this.firebaseRef.database().ref("passusers/defaultseedlist").once("value")
-                .then(function (r) {
-                _this.defaultSeeds = JSON.parse(r.val());
+            return new Promise(function (resolve, reject) {
+                var localSeeds = _this.getLocalSeedList();
+                if (!userId) {
+                    resolve(localSeeds);
+                    return;
+                }
+                _this.firebaseRef.database()
+                    .ref("passseedlists/" + userId)
+                    .once("value").then(function (r) {
+                    r;
+                    var serverSeeds = !r.lastChange ? r.val() : r;
+                    if (!serverSeeds || serverSeeds.lastChange < localSeeds.lastChange) {
+                        _this.saveCustomSeedList(userId, localSeeds.seedList);
+                        resolve(localSeeds);
+                        return;
+                    }
+                    _this.saveLocalSeeds(serverSeeds);
+                    resolve(serverSeeds);
+                });
             });
         };
-        Firebase.prototype.getCustomSeedList = function (userId) {
-            this.firebaseRef.database()
-                .ref('passusers/seedList' + userId)
-                .once("value")
-                .then(function (r) {
-                return JSON.parse(r.val());
+        Firebase.prototype.getLocalSeedList = function () {
+            var localSeeds = JSON.parse(localStorage.getItem(this.itemsKey));
+            return localSeeds && localSeeds.seedList
+                ? localSeeds
+                : null;
+        };
+        Firebase.prototype.saveLocalSeeds = function (seedSitesList, setTimestamp) {
+            if (!setTimestamp) {
+                localStorage.setItem(this.itemsKey, JSON.stringify(seedSitesList));
+            }
+            else {
+                localStorage.setItem(this.itemsKey, JSON.stringify({ lastChange: new Date().getTime(), seedList: seedSitesList }));
+            }
+        };
+        Firebase.prototype.saveCustomSeedList = function (userId, seedList) {
+            var _this = this;
+            return new Promise(function (resolve, reject) {
+                _this.saveLocalSeeds(seedList);
+                if (!userId) {
+                    resolve(false);
+                    return;
+                }
+                firebase.database()
+                    .ref("passseedlists/" + userId)
+                    .set({
+                    lastChange: new Date().getTime(),
+                    seedList: JSON.stringify(seedList)
+                }, function (error) {
+                    resolve(error ? false : true);
+                });
             });
         };
         Firebase.prototype.writeUserTest = function (userId, name, email) {
             firebase.database().ref('passusers/' + userId).set({
+                lastChange: new Date().getTime(),
                 username: name,
                 email: email
             });
@@ -175,7 +223,6 @@ define('services/firebase',["require", "exports"], function (require, exports) {
                     messagingSenderId: "739446105290"
                 };
                 this.firebaseRef = firebase.initializeApp(config);
-                this.getDefaultSeeds(true);
             }
         };
         return Firebase;
@@ -192,9 +239,103 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+define('services/user',["require", "exports", "aurelia-framework", "./firebase"], function (require, exports, aurelia_framework_1, firebase_1) {
+    "use strict";
+    var firebase;
+    var User = (function () {
+        function User(db) {
+            this.db = db;
+            this.itemsKey = "localSeedList";
+            this.authToken = null;
+            this.user = null;
+            this.defaultSeedList = JSON.parse("[{\"seed\": \"amazon\", \"url\": \"https://www.amazon.com/\", \"displayName\": \"Amazon\" }, { \"seed\": \"apple\", \"url\": \"https://www.apple.com/\", \"displayName\": \"Apple\" },{ \"seed\": \"box\", \"url\": \"https://app.box.com/login/\", \"displayName\": \"Box\" }, { \"seed\": \"ebay\", \"url\": \"https://signin.ebay.com/\", \"displayName\": \"Ebay\" } , { \"seed\": \"facebook\", \"url\": \"https://www.facebook.com/\", \"displayName\": \"Facebook\" }, { \"seed\": \"google\", \"url\": \"https://www.google.com/\", \"displayName\": \"Google\" }, { \"seed\": \"linkedin\", \"url\": \"https://www.linkedin.com/\", \"displayName\": \"LinkedIn\" }, { \"seed\": \"nytimes\", \"url\": \"https://myaccount.nytimes.com/\", \"displayName\": \"NYTimes\" }, { \"seed\": \"outlook\", \"url\": \"https://www.outlook.com/\", \"displayName\": \"Outlook\" }, { \"seed\": \"paypal\", \"url\": \"https://www.paypal.com/\", \"displayName\": \"PayPal\" }, { \"seed\": \"tumblr\", \"url\": \"https://www.tumblr.com/\", \"displayName\": \"Tumblr\" }, { \"seed\": \"twitter\", \"url\": \"https://twitter.com/\", \"displayName\": \"Twitter\" }, { \"seed\": \"wikipedia\", \"url\": \"https://www.wikipedia.org/\", \"displayName\": \"Wikipedia\" }, { \"seed\": \"wordpress\", \"url\": \"https://www.wordpress.com/\", \"displayName\": \"WordPress\" }, { \"seed\": \"yahoo\", \"url\": \"https://login.yahoo.com/\", \"displayName\": \"Yahoo\" }]");
+            this.isLoggedIn = false;
+            this.userData = {
+                displayName: "",
+                email: "",
+                photo: "",
+                seedList: null
+            };
+            this.initializeSeeds();
+        }
+        User.prototype.login = function (type) {
+            var _this = this;
+            this.db.login(type).then(function (result) {
+                _this.authToken = result.credential.accessToken;
+                _this.user = result.user;
+                _this.isLoggedIn = true;
+                _this.userData = {
+                    displayName: _this.user.displayName,
+                    email: _this.user.email,
+                    photo: _this.user.photoURL,
+                    seedList: null
+                };
+                _this.db
+                    .getCustomSeedList(_this.user.uid)
+                    .then(function (r) {
+                    _this.userData.seedList = r.seedList;
+                });
+            }).catch(function (error) {
+                var errorCode = error.code;
+                var errorMessage = error.message;
+                var email = error.email;
+                var credential = error.credential;
+            });
+        };
+        User.prototype.logout = function () {
+            var _this = this;
+            this.db.logout().then(function () {
+                _this.isLoggedIn = false;
+            }).catch(function (error) {
+                throw new Error(error);
+            });
+            ;
+        };
+        User.prototype.saveSeedList = function () {
+            var _this = this;
+            return new Promise(function (resolve, reject) {
+                var uid = _this.user ? _this.user.uid : null;
+                _this.db.saveCustomSeedList(uid, _this.userData.seedList).then(function (isChangeOnline) {
+                    if (!isChangeOnline) {
+                        _this.db.saveLocalSeeds(_this.userData.seedList, true);
+                    }
+                    resolve(true);
+                }).catch(function (r) {
+                    _this.db.saveLocalSeeds(_this.userData.seedList, true);
+                });
+            });
+        };
+        User.prototype.initializeSeeds = function () {
+            var localSeeds = this.db.getLocalSeedList();
+            if (!localSeeds) {
+                this.db.saveLocalSeeds(this.defaultSeedList, true);
+                this.userData.seedList = this.defaultSeedList;
+            }
+            else {
+                this.userData.seedList = localSeeds.seedList;
+            }
+        };
+        return User;
+    }());
+    User = __decorate([
+        aurelia_framework_1.autoinject,
+        __metadata("design:paramtypes", [firebase_1.Firebase])
+    ], User);
+    exports.User = User;
+});
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
 define('app',["require", "exports", "aurelia-framework", "./pass-generator", "./services/user"], function (require, exports, aurelia_framework_1, pass_generator_1, user_1) {
     "use strict";
-    var itemsKey = "seedsAndSites";
+    var itemsKey = "localSeedList";
     var App = (function () {
         function App(passgen, user) {
             this.passgen = passgen;
@@ -202,10 +343,6 @@ define('app',["require", "exports", "aurelia-framework", "./pass-generator", "./
             this.isPasswordMasked = true;
             this.listHasChanged = false;
             this.customSite = { url: "", seed: "", displayName: "" };
-            this.sites = [];
-            this.userLoggedIn = false;
-            this.authToken = null;
-            this.sites = this.loadSeeds();
         }
         Object.defineProperty(App.prototype, "passwordType", {
             get: function () {
@@ -215,8 +352,8 @@ define('app',["require", "exports", "aurelia-framework", "./pass-generator", "./
             configurable: true
         });
         App.prototype.setVals = function () {
-            for (var i = 0; i < this.sites.length; i++) {
-                this.passwordHash(this.sites[i].seed, this.myPassword);
+            for (var i = 0; i < this.user.userData.seedList.length; i++) {
+                this.passwordHash(this.user.userData.seedList[i].seed, this.myPassword);
             }
         };
         App.prototype.passwordHash = function (passbox, master) {
@@ -226,12 +363,12 @@ define('app',["require", "exports", "aurelia-framework", "./pass-generator", "./
         };
         App.prototype.addCustomSeedToList = function () {
             this.customSite.seed = this.customSite.displayName.toLowerCase();
-            this.sites.push(this.customSite);
+            this.user.userData.seedList.push(this.customSite);
             this.setEmptyCustomSite();
             this.listHasChanged = true;
         };
         App.prototype.deleteSeed = function (site) {
-            this.sites.splice(this.sites.indexOf(site), 1);
+            this.user.userData.seedList.splice(this.user.userData.seedList.indexOf(site), 1);
             this.listHasChanged = true;
         };
         App.prototype.setEmptyCustomSite = function () {
@@ -241,18 +378,13 @@ define('app',["require", "exports", "aurelia-framework", "./pass-generator", "./
                 displayName: ""
             };
         };
-        App.prototype.loadSeeds = function () {
-            if (!this.userLoggedIn) {
-                var items = localStorage.getItem(itemsKey);
-                return items ? JSON.parse(items) : this.passgen.defaultSites;
-            }
-            else {
-                return this.firebase.getDefaultSeeds();
-            }
-        };
         App.prototype.saveSeeds = function () {
-            localStorage.setItem(itemsKey, JSON.stringify(this.sites));
-            this.listHasChanged = false;
+            var _this = this;
+            this.user.saveSeedList().then(function (r) {
+                _this.listHasChanged = false;
+            }).catch(function (r) {
+                _this.listHasChanged = false;
+            });
         };
         return App;
     }());
@@ -306,98 +438,5 @@ define('resources/index',["require", "exports"], function (require, exports) {
     exports.configure = configure;
 });
 
-define('services/userCredentials',["require", "exports"], function (require, exports) {
-    "use strict";
-    var UserCredentials = (function () {
-        function UserCredentials(firebase) {
-            this.firebase = firebase;
-        }
-        return UserCredentials;
-    }());
-    exports.UserCredentials = UserCredentials;
-});
-
-var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
-    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-    return c > 3 && r && Object.defineProperty(target, key, r), r;
-};
-var __metadata = (this && this.__metadata) || function (k, v) {
-    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
-};
-define('services/user',["require", "exports", "aurelia-framework", "./firebase"], function (require, exports, aurelia_framework_1, firebase_1) {
-    "use strict";
-    var firebase;
-    var User = (function () {
-        function User(firebaseRef) {
-            this.firebaseRef = firebaseRef;
-            this.itemsKey = "seedsAndSites";
-            this.authToken = null;
-            this.user = null;
-            this.isLoggedIn = firebase.auth().currentUser.uid ? true : false;
-        }
-        ;
-        Object.defineProperty(User.prototype, "userData", {
-            get: function () {
-                var seedList = [];
-                if (!this.isLoggedIn) {
-                    var defaultSeeds = this.firebaseRef.defaultSeeds;
-                    var localSeeds = localStorage.getItem(this.itemsKey);
-                    seedList = localSeeds ? JSON.parse(localSeeds) : defaultSeeds;
-                }
-                else {
-                    this.firebaseRef.getCustomSeedList(this.user.uid);
-                }
-                return {
-                    displayName: "",
-                    mail: "",
-                    photo: "",
-                    seedList: seedList
-                };
-            },
-            enumerable: true,
-            configurable: true
-        });
-        User.prototype.login = function (type) {
-            var _this = this;
-            this.firebaseRef.login(type).then(function (result) {
-                _this.authToken = result.credential.accessToken;
-                _this.user = result.user;
-                _this.isLoggedIn = true;
-            }).catch(function (error) {
-                var errorCode = error.code;
-                var errorMessage = error.message;
-                var email = error.email;
-                var credential = error.credential;
-            });
-        };
-        User.prototype.logout = function () {
-            var _this = this;
-            this.firebaseRef.logout().then(function () {
-                _this.isLoggedIn = false;
-            }).catch(function (error) {
-                throw new Error(error);
-            });
-            ;
-        };
-        return User;
-    }());
-    __decorate([
-        aurelia_framework_1.computedFrom("isLoggedIn"),
-        __metadata("design:type", Object),
-        __metadata("design:paramtypes", [])
-    ], User.prototype, "userData", null);
-    User = __decorate([
-        aurelia_framework_1.autoinject,
-        __metadata("design:paramtypes", [firebase_1.Firebase])
-    ], User);
-    exports.User = User;
-});
-
-define('interfaces/user',["require", "exports"], function (require, exports) {
-    "use strict";
-});
-
-define('text!app.html', ['module'], function(module) { module.exports = "<template>\r\n  <p>\r\n    Using the same password for multiple email, shopping and social networking websites is risky, it means that a security breach\r\n    at one website will compromise all your accounts, possibly even leading to identity theft.\r\n  </p>\r\n  <p>\r\n    So, the idea is that you memorise just one, reasonably long/secure master password and use that to generate a set of non-dictionary\r\n    passwords. Copy and paste the new password(s) into the website and set your web browser to remember them.\r\n  </p>\r\n  <p>All the websites get different passwords, but you only have to remember one!</p>\r\n  \r\n   <a href=\"javascript:void(0);\" click.delegate=\"login('google')\" if.bind=\"!userLoggedIn\">Login via Google</a>\r\n    <a href=\"javascript:void(0);\" click.delegate=\"login('twiter')\" if.bind=\"!userLoggedIn\">Login via Twitter</a>\r\n    <a href=\"javascript:void(0);\" click.delegate=\"login('facebook')\" if.bind=\"!userLoggedIn\">Login via Facebook</a>\r\n    <a href=\"javascript:void(0);\" click.delegate=\"logout()\" if.bind=\"userLoggedIn\">Logout</a>\r\n\r\n    <div class=\"profile\" if.bind=\"userLoggedIn && user\">\r\n        <h1>${user.displayName}</h1>\r\n        <h2>${user.email}</h2>\r\n        <img src.bind=\"user.photoURL\" if.bind=\"user.photoURL\">\r\n        <p>\r\n          <button click.delegate=\"firebase.writeUserTest(firebase.user.uid, firebase.user.displayName, firebase.user.email)\">Write test</button>\r\n        </p>\r\n    </div>\r\n\r\n  <form role=\"form\" submit.delegate=\"setVals()\">\r\n    <label for=\"mainPassBox\">Password</label>\r\n    <input type.bind=\"passwordType\" value.bind=\"myPassword\" id=\"mainPassBox\" />\r\n    <input type=\"checkbox\" checked.bind=\"isPasswordMasked\" id=\"isPassMaskCBox\" />\r\n    <label for=\"isPassMaskCBox\">show/hide Password</label>\r\n    <button>Set Paswords</button>\r\n  </form>\r\n  \r\n  <div repeat.for=\"site of sites\">\r\n    <label for.bind=\"site.seed\">${site.displayName}</label>\r\n    <input id.bind=\"site.seed\" type=\"text\" class=\"site-pass-input\" />\r\n    <button click.delegate=\"deleteSeed(site)\">Delete</button>\r\n  </div>\r\n  \r\n  <p>Here you can add new sites to generate passwords</p>\r\n  \r\n  <form role=\"form\" submit.delegate=\"addCustomSeedToList()\">\r\n    <label for=\"siteName\">Site name</label>\r\n    <input value.bind=\"customSite.displayName\" id=\"siteName\" type=\"text\" required/>\r\n    <label for=\"sitUrl\">Url</label>\r\n    <input value.bind=\"customSite.url\" id=\"siteUrl\" type=\"url\" />\r\n    <button type=\"submit\">Add Custom Site</button>\r\n  </form>\r\n  \r\n  <div if.bind=\"listHasChanged\">\r\n    <p>You can save your custom Sites List to your browser memory</p>\r\n    <button click.delegate=\"saveSeeds()\">Remember Custom List</button>\r\n  </div>\r\n</template>\r\n"; });
+define('text!app.html', ['module'], function(module) { module.exports = "<template>\r\n  <p>\r\n    Using the same password for multiple email, shopping and social networking websites is risky, it means that a security breach\r\n    at one website will compromise all your accounts, possibly even leading to identity theft.\r\n  </p>\r\n  <p>\r\n    So, the idea is that you memorise just one, reasonably long/secure master password and use that to generate a set of non-dictionary\r\n    passwords. Copy and paste the new password(s) into the website and set your web browser to remember them.\r\n  </p>\r\n  <p>All the websites get different passwords, but you only have to remember one!</p>\r\n  \r\n   <a href=\"javascript:void(0);\" click.delegate=\"user.login('google')\" if.bind=\"!user.isLoggedIn\">Login via Google</a>\r\n    <a href=\"javascript:void(0);\" click.delegate=\"user.login('twiter')\" if.bind=\"!user.isLoggedIn\">Login via Twitter</a>\r\n    <a href=\"javascript:void(0);\" click.delegate=\"user.login('facebook')\" if.bind=\"!user.isLoggedIn\">Login via Facebook</a>\r\n    <a href=\"javascript:void(0);\" click.delegate=\"user.logout()\" if.bind=\"user.isLoggedIn\">Logout</a>\r\n\r\n    <div class=\"profile\" if.bind=\"user.isLoggedIn && user\">\r\n        <h1>${user.userData.displayName}</h1>\r\n        <h2>${user.userData.email}</h2>\r\n        <img src.bind=\"user.userData.photo\" if.bind=\"user.userData.photo\">\r\n        <p>\r\n          <button click.delegate=\"firebase.writeUserTest(firebase.user.uid, firebase.user.displayName, firebase.user.email)\">Write test</button>\r\n        </p>\r\n    </div>\r\n\r\n  <form role=\"form\" submit.delegate=\"setVals()\">\r\n    <label for=\"mainPassBox\">Password</label>\r\n    <input type.bind=\"passwordType\" value.bind=\"myPassword\" id=\"mainPassBox\" />\r\n    <input type=\"checkbox\" checked.bind=\"isPasswordMasked\" id=\"isPassMaskCBox\" />\r\n    <label for=\"isPassMaskCBox\">show/hide Password</label>\r\n    <button>Set Paswords</button>\r\n  </form>\r\n  \r\n  <div repeat.for=\"site of user.userData.seedList\">\r\n    <label for.bind=\"site.seed\">${site.displayName}</label>\r\n    <input id.bind=\"site.seed\" type=\"text\" class=\"site-pass-input\" />\r\n    <button click.delegate=\"deleteSeed(site)\">Delete</button>\r\n  </div>\r\n  \r\n  <p>Here you can add new sites to generate passwords</p>\r\n  \r\n  <form role=\"form\" submit.delegate=\"addCustomSeedToList()\">\r\n    <label for=\"siteName\">Site name</label>\r\n    <input value.bind=\"customSite.displayName\" id=\"siteName\" type=\"text\" required/>\r\n    <label for=\"sitUrl\">Url</label>\r\n    <input value.bind=\"customSite.url\" id=\"siteUrl\" type=\"url\" />\r\n    <button type=\"submit\">Add Custom Site</button>\r\n  </form>\r\n  \r\n  <div if.bind=\"listHasChanged\">\r\n    <p>You can save your custom Sites List to your browser memory</p>\r\n    <button click.delegate=\"saveSeeds()\">Remember Custom List</button>\r\n  </div>\r\n</template>\r\n"; });
 //# sourceMappingURL=app-bundle.js.map

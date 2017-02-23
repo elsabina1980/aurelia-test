@@ -1,4 +1,4 @@
-import { ISites } from "../interfaces/export";
+import { ISites, ISeedList } from "../interfaces/export";
 
 declare var firebase;
 export class Firebase {
@@ -8,7 +8,7 @@ export class Firebase {
   private isInitialized = false;
   private itemsKey = "localSeedList";
   firebaseRef = null;
-  
+
   // This mostly gets called on subsequent page loads to determine
   // what the current status of the user is with "user" being an object
   // return by Firebase with credentials and other info inside of it
@@ -36,29 +36,72 @@ export class Firebase {
     return firebase.auth().signOut()
   }
 
-  getDefaultSeeds(): Promise<any> {
-   return this.firebaseRef.database().ref("passusers/defaultseedlist").once("value")
+  
+
+  getCustomSeedList(userId: string): Promise<ISeedList> {
+
+    return new Promise((resolve, reject) => {
+      const localSeeds = this.getLocalSeedList();
+
+      if (!userId) {
+        resolve(localSeeds)
+        return;
+      }
+
+      this.firebaseRef.database()
+        .ref(`passseedlists/${userId}`)
+        .once("value").then((r) => {
+          r;
+          const serverSeeds: ISeedList = !r.lastChange? r.val() : r;
+
+          if (!serverSeeds || serverSeeds.lastChange < localSeeds.lastChange) {
+            this.saveCustomSeedList(userId, localSeeds.seedList)
+            resolve(localSeeds);
+            return;
+          }
+
+          this.saveLocalSeeds(serverSeeds);
+          resolve(serverSeeds);
+
+        })
+    }
+    )
   }
 
-  getCustomSeedList(userId: string): Promise<any> {
-    return this.firebaseRef.database()
-      .ref(`passseedlists/${userId}`)
-      .once("value")
+  getLocalSeedList(): ISeedList {
+    const localSeeds: ISeedList = JSON.parse(localStorage.getItem(this.itemsKey));
+    return localSeeds && localSeeds.seedList
+      ? localSeeds
+      : null
   }
 
-  getLocalSeedList(): Array<ISites>{
-     const localSeeds = JSON.parse(localStorage.getItem(this.itemsKey));
-     return localSeeds 
-     ? localSeeds.seedList
-     : null
+  saveLocalSeeds(seedSitesList:Array<ISites>|ISeedList, setTimestamp?: boolean) {
+    if (!setTimestamp) {
+      localStorage.setItem(this.itemsKey, JSON.stringify(seedSitesList));
+    } else {
+      localStorage.setItem(this.itemsKey, JSON.stringify({ lastChange: new Date().getTime(), seedList: seedSitesList }));
+    }
   }
 
-  saveCustomSeedList(userId: string, seedList: Array<ISites>) {
-    firebase.database().ref(`passseedlists/${userId}`).set({
-      lastChange: new Date().getTime(),
-      seedList: JSON.stringify(seedList)
-    });
-    localStorage.setItem("localSeedList", JSON.stringify({lastChange: new Date().getTime(), seedList: seedList}));
+  saveCustomSeedList(userId: string, seedList: Array<ISites>): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      this.saveLocalSeeds(seedList);
+
+      if (!userId) {
+        resolve(false);
+        return;
+      }
+
+      firebase.database()
+        .ref(`passseedlists/${userId}`)
+        .set({
+          lastChange: new Date().getTime(),
+          seedList: JSON.stringify(seedList)
+        },
+        (error) => {
+          resolve(error? false:true);
+        });
+    })
   }
   writeUserTest(userId: string, name, email) {
     firebase.database().ref('passusers/' + userId).set({
