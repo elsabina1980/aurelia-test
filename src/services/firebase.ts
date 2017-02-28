@@ -36,7 +36,7 @@ export class Firebase {
     return firebase.auth().signOut()
   }
 
-  
+
 
   getCustomSeedList(userId: string): Promise<ISeedList> {
 
@@ -51,9 +51,10 @@ export class Firebase {
       this.firebaseRef.database()
         .ref(`passseedlists/${userId}`)
         .once("value").then((r) => {
-          r;
-          const serverSeeds: ISeedList = !r.lastChange? r.val() : r;
-
+          const serverSeeds: ISeedList = !r.lastChange ? r.val() : r;
+          if (typeof serverSeeds.seedList == "string") {
+            serverSeeds.seedList = JSON.parse(serverSeeds.seedList);
+          }
           if (!serverSeeds || serverSeeds.lastChange < localSeeds.lastChange) {
             this.saveCustomSeedList(userId, localSeeds.seedList)
             resolve(localSeeds);
@@ -62,30 +63,33 @@ export class Firebase {
 
           this.saveLocalSeeds(serverSeeds);
           resolve(serverSeeds);
-
         })
     }
     )
   }
 
   getLocalSeedList(): ISeedList {
-    const localSeeds: ISeedList = JSON.parse(localStorage.getItem(this.itemsKey));
+    const localSeeds = JSON.parse(localStorage.getItem(this.itemsKey));
+    if (typeof localSeeds.seedList == "string") {
+      localSeeds.seedList = JSON.parse(localSeeds.seedList);
+    }
+
     return localSeeds && localSeeds.seedList
       ? localSeeds
       : null
   }
 
-  saveLocalSeeds(seedSitesList:Array<ISites>|ISeedList, setTimestamp?: boolean) {
-    if (!setTimestamp) {
-      localStorage.setItem(this.itemsKey, JSON.stringify(seedSitesList));
-    } else {
-      localStorage.setItem(this.itemsKey, JSON.stringify({ lastChange: new Date().getTime(), seedList: seedSitesList }));
+  saveLocalSeeds(seedSitesList: ISeedList, setTimestamp?: boolean) {
+    localStorage.setItem(this.itemsKey, JSON.stringify({
+      lastChange: setTimestamp ? new Date().getTime() : seedSitesList.lastChange,
+      seedList: seedSitesList.seedList
     }
+    ));
   }
 
   saveCustomSeedList(userId: string, seedList: Array<ISites>): Promise<boolean> {
     return new Promise((resolve, reject) => {
-      this.saveLocalSeeds(seedList);
+      this.saveLocalSeeds({ lastChange: null, seedList: seedList }, true);
 
       if (!userId) {
         resolve(false);
@@ -99,16 +103,9 @@ export class Firebase {
           seedList: JSON.stringify(seedList)
         },
         (error) => {
-          resolve(error? false:true);
+          resolve(error ? false : true);
         });
     })
-  }
-  writeUserTest(userId: string, name, email) {
-    firebase.database().ref('passusers/' + userId).set({
-      lastChange: new Date().getTime(),
-      username: name,
-      email: email
-    });
   }
 
   initialized() {

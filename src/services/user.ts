@@ -65,11 +65,11 @@ export class User {
       const uid = this.user ? this.user.uid : null;
       this.db.saveCustomSeedList(uid, this.userData.seedList).then(isChangeOnline => {
         if (!isChangeOnline) {
-          this.db.saveLocalSeeds(this.userData.seedList, true);
+          this.db.saveLocalSeeds({lastChange: null, seedList: this.userData.seedList}, true);
         }
         resolve(true)
       }).catch(r => {
-        this.db.saveLocalSeeds(this.userData.seedList, true);
+        this.db.saveLocalSeeds({lastChange: null, seedList: this.userData.seedList}, true);
       })
     })
   }
@@ -77,10 +77,11 @@ export class User {
     const localSeeds: ISeedList = this.db.getLocalSeedList();
 
     if (!localSeeds) {
-      this.db.saveLocalSeeds(this.defaultSeedList, true);
+      localStorage.removeItem(this.itemsKey);
+      this.db.saveLocalSeeds({lastChange: null, seedList: this.defaultSeedList}, true);
       this.userData.seedList = this.defaultSeedList;
     } else {
-      this.userData.seedList = localSeeds.seedList;
+      this.userData.seedList =localSeeds.seedList;
     }
 
     //TODO Try to Login ONInit
