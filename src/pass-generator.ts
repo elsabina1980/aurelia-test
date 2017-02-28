@@ -3,6 +3,7 @@ export class PasswordGenerator {
   constructor() {
     this.b64pad = "";
     this.chrsz = 8;
+    
   }
   b64pad: string;
   chrsz: number;
