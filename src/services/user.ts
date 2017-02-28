@@ -27,6 +27,7 @@ export class User {
     this.db.login(type).then((result: any) => {
       // The token for this session
       this.authToken = result.credential.accessToken;
+      
       // The user object containing information about the current user
       this.user = result.user;
       //this.db.firebaseRef.getInstance().setPersistenceEnabled(true);

@@ -161,8 +161,10 @@ define('services/firebase',["require", "exports"], function (require, exports) {
                 _this.firebaseRef.database()
                     .ref("passseedlists/" + userId)
                     .once("value").then(function (r) {
-                    r;
                     var serverSeeds = !r.lastChange ? r.val() : r;
+                    if (typeof serverSeeds.seedList == "string") {
+                        serverSeeds.seedList = JSON.parse(serverSeeds.seedList);
+                    }
                     if (!serverSeeds || serverSeeds.lastChange < localSeeds.lastChange) {
                         _this.saveCustomSeedList(userId, localSeeds.seedList);
                         resolve(localSeeds);
@@ -175,22 +177,23 @@ define('services/firebase',["require", "exports"], function (require, exports) {
         };
         Firebase.prototype.getLocalSeedList = function () {
             var localSeeds = JSON.parse(localStorage.getItem(this.itemsKey));
+            if (typeof localSeeds.seedList == "string") {
+                localSeeds.seedList = JSON.parse(localSeeds.seedList);
+            }
             return localSeeds && localSeeds.seedList
                 ? localSeeds
                 : null;
         };
         Firebase.prototype.saveLocalSeeds = function (seedSitesList, setTimestamp) {
-            if (!setTimestamp) {
-                localStorage.setItem(this.itemsKey, JSON.stringify(seedSitesList));
-            }
-            else {
-                localStorage.setItem(this.itemsKey, JSON.stringify({ lastChange: new Date().getTime(), seedList: seedSitesList }));
-            }
+            localStorage.setItem(this.itemsKey, JSON.stringify({
+                lastChange: setTimestamp ? new Date().getTime() : seedSitesList.lastChange,
+                seedList: seedSitesList.seedList
+            }));
         };
         Firebase.prototype.saveCustomSeedList = function (userId, seedList) {
             var _this = this;
             return new Promise(function (resolve, reject) {
-                _this.saveLocalSeeds(seedList);
+                _this.saveLocalSeeds({ lastChange: null, seedList: seedList }, true);
                 if (!userId) {
                     resolve(false);
                     return;
@@ -203,13 +206,6 @@ define('services/firebase',["require", "exports"], function (require, exports) {
                 }, function (error) {
                     resolve(error ? false : true);
                 });
-            });
-        };
-        Firebase.prototype.writeUserTest = function (userId, name, email) {
-            firebase.database().ref('passusers/' + userId).set({
-                lastChange: new Date().getTime(),
-                username: name,
-                email: email
             });
         };
         Firebase.prototype.initialized = function () {
@@ -297,18 +293,19 @@ define('services/user',["require", "exports", "aurelia-framework", "./firebase"]
                 var uid = _this.user ? _this.user.uid : null;
                 _this.db.saveCustomSeedList(uid, _this.userData.seedList).then(function (isChangeOnline) {
                     if (!isChangeOnline) {
-                        _this.db.saveLocalSeeds(_this.userData.seedList, true);
+                        _this.db.saveLocalSeeds({ lastChange: null, seedList: _this.userData.seedList }, true);
                     }
                     resolve(true);
                 }).catch(function (r) {
-                    _this.db.saveLocalSeeds(_this.userData.seedList, true);
+                    _this.db.saveLocalSeeds({ lastChange: null, seedList: _this.userData.seedList }, true);
                 });
             });
         };
         User.prototype.initializeSeeds = function () {
             var localSeeds = this.db.getLocalSeedList();
             if (!localSeeds) {
-                this.db.saveLocalSeeds(this.defaultSeedList, true);
+                localStorage.removeItem(this.itemsKey);
+                this.db.saveLocalSeeds({ lastChange: null, seedList: this.defaultSeedList }, true);
                 this.userData.seedList = this.defaultSeedList;
             }
             else {
