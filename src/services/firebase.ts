@@ -13,18 +13,29 @@ export class Firebase {
   // what the current status of the user is with "user" being an object
   // return by Firebase with credentials and other info inside of it
   login(type): Promise<any> {
+    const localCredentials = localStorage.getItem("credentials")
+
+
+
     let provider;
 
-    // Determine which provider to use depending on provided type
-    // which is passed through from app.html
-    if (type === 'google') {
-      provider = new firebase.auth.GoogleAuthProvider();
-    } else if (type === 'facebook') {
-      provider = new firebase.auth.FacebookAuthProvider();
-    } else if (type === 'twitter') {
-      provider = new firebase.auth.TwitterAuthProvider();
+    switch (type) {
+      case "google":
+        provider = new firebase.auth.GoogleAuthProvider();
+        break;
+      case "facebook":
+        provider = new firebase.auth.FacebookAuthProvider();
+        break;
+      case "twitter":
+        provider = new firebase.auth.TwitterAuthProvider();
+      default:
+        break;
     }
 
+    if (localCredentials && localCredentials != "undefined") {
+      const credential = firebase.auth.FacebookAuthProvider.credential(JSON.parse(localCredentials).accessToken);
+      return firebase.auth().signInWithCredential(credential);
+    }
     // Call the Firebase signin method for our provider
     // then take the successful or failed result and deal with
     // it accordingly.

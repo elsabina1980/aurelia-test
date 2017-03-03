@@ -1,54 +1,63 @@
 <template>
-  <p>
-    Using the same password for multiple email, shopping and social networking websites is risky, it means that a security breach
-    at one website will compromise all your accounts, possibly even leading to identity theft.
-  </p>
-  <p>
-    So, the idea is that you memorise just one, reasonably long/secure master password and use that to generate a set of non-dictionary
-    passwords. Copy and paste the new password(s) into the website and set your web browser to remember them.
-  </p>
-  <p>All the websites get different passwords, but you only have to remember one!</p>
-  
-   <a href="javascript:void(0);" click.delegate="user.login('google')" if.bind="!user.isLoggedIn">Login via Google</a>
+  <div show.bind="user.spinner.active">
+    <div class='uil-ripple-css' style='transform:scale(0.64);'>
+      <div></div>
+      <div></div>
+    </div>
+  </div>
+  <div show.bind="!user.spinner.active">
+    <p>
+      Using the same password for multiple email, shopping and social networking websites is risky, it means that a security breach
+      at one website will compromise all your accounts, possibly even leading to identity theft.
+    </p>
+    <p>
+      So, the idea is that you memorise just one, reasonably long/secure master password and use that to generate a set of non-dictionary
+      passwords. Copy and paste the new password(s) into the website and set your web browser to remember them.
+    </p>
+    <p>All the websites get different passwords, but you only have to remember one!</p>
+
+    <a href="javascript:void(0);" click.delegate="user.login('google')" if.bind="!user.isLoggedIn">Login via Google</a>
     <a href="javascript:void(0);" click.delegate="user.login('twiter')" if.bind="!user.isLoggedIn">Login via Twitter</a>
     <a href="javascript:void(0);" click.delegate="user.login('facebook')" if.bind="!user.isLoggedIn">Login via Facebook</a>
     <a href="javascript:void(0);" click.delegate="user.logout()" if.bind="user.isLoggedIn">Logout</a>
 
     <div class="profile" if.bind="user.isLoggedIn && user">
-        <h1>${user.userData.displayName}</h1>
-        <h2>${user.userData.email}</h2>
-        <img src.bind="user.userData.photo" if.bind="user.userData.photo">
-        <p>
-          <button click.delegate="firebase.writeUserTest(firebase.user.uid, firebase.user.displayName, firebase.user.email)">Write test</button>
-        </p>
+      <h1>${user.userData.displayName}</h1>
+      <h2>${user.userData.email}</h2>
+      <img src.bind="user.userData.photo" if.bind="user.userData.photo">
+      <p>
+        <button click.delegate="firebase.writeUserTest(firebase.user.uid, firebase.user.displayName, firebase.user.email)">Write test</button>
+      </p>
     </div>
 
-  <form role="form" submit.delegate="setVals()">
-    <label for="mainPassBox">Password</label>
-    <input type.bind="passwordType" value.bind="myPassword" id="mainPassBox" />
-    <input type="checkbox" checked.bind="isPasswordMasked" id="isPassMaskCBox" />
-    <label for="isPassMaskCBox">show/hide Password</label>
-    <button>Set Paswords</button>
-  </form>
-  
-  <div repeat.for="site of user.userData.seedList">
-    <label for.bind="site.seed">${site.displayName}</label>
-    <input id.bind="site.seed" type="text" class="site-pass-input" />
-    <button click.delegate="deleteSeed(site)">Delete</button>
+    <form role="form" submit.delegate="setVals()">
+      <label for="mainPassBox">Password</label>
+      <input type.bind="passwordType" value.bind="myPassword" id="mainPassBox" />
+      <input type="checkbox" checked.bind="isPasswordMasked" id="isPassMaskCBox" />
+      <label for="isPassMaskCBox">show/hide Password</label>
+      <button>Set Paswords</button>
+    </form>
+
+    <div repeat.for="site of user.userData.seedList">
+      <label for.bind="site.seed">${site.displayName}</label>
+      <input id.bind="site.seed" type="text" class="site-pass-input" />
+      <button click.delegate="deleteSeed(site)">Delete</button>
+    </div>
+
+    <p>Here you can add new sites to generate passwords</p>
+
+    <form role="form" submit.delegate="addCustomSeedToList()">
+      <label for="siteName">Site name</label>
+      <input value.bind="customSite.displayName" id="siteName" type="text" required/>
+      <label for="sitUrl">Url</label>
+      <input value.bind="customSite.url" id="siteUrl" type="url" />
+      <button type="submit">Add Custom Site</button>
+    </form>
+
+    <div if.bind="listHasChanged">
+      <p>You can save your custom Sites List to your browser memory</p>
+      <button click.delegate="saveSeeds()">Remember Custom List</button>
+    </div>
   </div>
-  
-  <p>Here you can add new sites to generate passwords</p>
-  
-  <form role="form" submit.delegate="addCustomSeedToList()">
-    <label for="siteName">Site name</label>
-    <input value.bind="customSite.displayName" id="siteName" type="text" required/>
-    <label for="sitUrl">Url</label>
-    <input value.bind="customSite.url" id="siteUrl" type="url" />
-    <button type="submit">Add Custom Site</button>
-  </form>
-  
-  <div if.bind="listHasChanged">
-    <p>You can save your custom Sites List to your browser memory</p>
-    <button click.delegate="saveSeeds()">Remember Custom List</button>
-  </div>
+
 </template>

@@ -135,15 +135,23 @@ define('services/firebase',["require", "exports"], function (require, exports) {
             this.initialized();
         }
         Firebase.prototype.login = function (type) {
+            var localCredentials = localStorage.getItem("credentials");
             var provider;
-            if (type === 'google') {
-                provider = new firebase.auth.GoogleAuthProvider();
+            switch (type) {
+                case "google":
+                    provider = new firebase.auth.GoogleAuthProvider();
+                    break;
+                case "facebook":
+                    provider = new firebase.auth.FacebookAuthProvider();
+                    break;
+                case "twitter":
+                    provider = new firebase.auth.TwitterAuthProvider();
+                default:
+                    break;
             }
-            else if (type === 'facebook') {
-                provider = new firebase.auth.FacebookAuthProvider();
-            }
-            else if (type === 'twitter') {
-                provider = new firebase.auth.TwitterAuthProvider();
+            if (localCredentials && localCredentials != "undefined") {
+                var credential = firebase.auth.FacebookAuthProvider.credential(JSON.parse(localCredentials).accessToken);
+                return firebase.auth().signInWithCredential(credential);
             }
             return firebase.auth().signInWithPopup(provider);
         };
@@ -235,12 +243,13 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-define('services/user',["require", "exports", "aurelia-framework", "./firebase"], function (require, exports, aurelia_framework_1, firebase_1) {
+define('services/user',["require", "exports", "aurelia-framework", "./firebase", "./spinner"], function (require, exports, aurelia_framework_1, firebase_1, spinner_1) {
     "use strict";
     var firebase;
     var User = (function () {
-        function User(db) {
+        function User(db, spinner) {
             this.db = db;
+            this.spinner = spinner;
             this.itemsKey = "localSeedList";
             this.authToken = null;
             this.user = null;
@@ -256,26 +265,44 @@ define('services/user',["require", "exports", "aurelia-framework", "./firebase"]
         }
         User.prototype.login = function (type) {
             var _this = this;
+            this.spinner.on();
             this.db.login(type).then(function (result) {
-                _this.authToken = result.credential.accessToken;
-                _this.user = result.user;
-                _this.isLoggedIn = true;
-                _this.userData = {
-                    displayName: _this.user.displayName,
-                    email: _this.user.email,
-                    photo: _this.user.photoURL,
-                    seedList: null
-                };
+                if (result.refreshToken) {
+                    _this.userData = {
+                        displayName: result.displayName,
+                        email: result.email,
+                        photo: result.photoURL,
+                        seedList: null
+                    };
+                }
+                else {
+                    _this.authToken = result.credential.accessToken;
+                    localStorage.setItem("credentials", JSON.stringify(result.credential));
+                    _this.user = result.user;
+                    _this.userData = {
+                        displayName: _this.user.displayName,
+                        email: _this.user.email,
+                        photo: _this.user.photoURL,
+                        seedList: null
+                    };
+                }
                 _this.db
                     .getCustomSeedList(_this.user.uid)
                     .then(function (r) {
                     _this.userData.seedList = r.seedList;
+                    _this.isLoggedIn = true;
+                    _this.spinner.off();
                 });
             }).catch(function (error) {
                 var errorCode = error.code;
                 var errorMessage = error.message;
                 var email = error.email;
                 var credential = error.credential;
+                if (errorCode == "auth/invalid-credential") {
+                    alert("After 2 hours you need to login manually again");
+                }
+                _this.spinner.off();
+                localStorage.removeItem("credentials");
             });
         };
         User.prototype.logout = function () {
@@ -302,21 +329,13 @@ define('services/user',["require", "exports", "aurelia-framework", "./firebase"]
             });
         };
         User.prototype.initializeSeeds = function () {
-            var localSeeds = this.db.getLocalSeedList();
-            if (!localSeeds) {
-                localStorage.removeItem(this.itemsKey);
-                this.db.saveLocalSeeds({ lastChange: null, seedList: this.defaultSeedList }, true);
-                this.userData.seedList = this.defaultSeedList;
-            }
-            else {
-                this.userData.seedList = localSeeds.seedList;
-            }
+            this.login("facebook");
         };
         return User;
     }());
     User = __decorate([
         aurelia_framework_1.autoinject,
-        __metadata("design:paramtypes", [firebase_1.Firebase])
+        __metadata("design:paramtypes", [firebase_1.Firebase, spinner_1.Spinner])
     ], User);
     exports.User = User;
 });
@@ -435,5 +454,22 @@ define('resources/index',["require", "exports"], function (require, exports) {
     exports.configure = configure;
 });
 
-define('text!app.html', ['module'], function(module) { module.exports = "<template>\r\n  <p>\r\n    Using the same password for multiple email, shopping and social networking websites is risky, it means that a security breach\r\n    at one website will compromise all your accounts, possibly even leading to identity theft.\r\n  </p>\r\n  <p>\r\n    So, the idea is that you memorise just one, reasonably long/secure master password and use that to generate a set of non-dictionary\r\n    passwords. Copy and paste the new password(s) into the website and set your web browser to remember them.\r\n  </p>\r\n  <p>All the websites get different passwords, but you only have to remember one!</p>\r\n  \r\n   <a href=\"javascript:void(0);\" click.delegate=\"user.login('google')\" if.bind=\"!user.isLoggedIn\">Login via Google</a>\r\n    <a href=\"javascript:void(0);\" click.delegate=\"user.login('twiter')\" if.bind=\"!user.isLoggedIn\">Login via Twitter</a>\r\n    <a href=\"javascript:void(0);\" click.delegate=\"user.login('facebook')\" if.bind=\"!user.isLoggedIn\">Login via Facebook</a>\r\n    <a href=\"javascript:void(0);\" click.delegate=\"user.logout()\" if.bind=\"user.isLoggedIn\">Logout</a>\r\n\r\n    <div class=\"profile\" if.bind=\"user.isLoggedIn && user\">\r\n        <h1>${user.userData.displayName}</h1>\r\n        <h2>${user.userData.email}</h2>\r\n        <img src.bind=\"user.userData.photo\" if.bind=\"user.userData.photo\">\r\n        <p>\r\n          <button click.delegate=\"firebase.writeUserTest(firebase.user.uid, firebase.user.displayName, firebase.user.email)\">Write test</button>\r\n        </p>\r\n    </div>\r\n\r\n  <form role=\"form\" submit.delegate=\"setVals()\">\r\n    <label for=\"mainPassBox\">Password</label>\r\n    <input type.bind=\"passwordType\" value.bind=\"myPassword\" id=\"mainPassBox\" />\r\n    <input type=\"checkbox\" checked.bind=\"isPasswordMasked\" id=\"isPassMaskCBox\" />\r\n    <label for=\"isPassMaskCBox\">show/hide Password</label>\r\n    <button>Set Paswords</button>\r\n  </form>\r\n  \r\n  <div repeat.for=\"site of user.userData.seedList\">\r\n    <label for.bind=\"site.seed\">${site.displayName}</label>\r\n    <input id.bind=\"site.seed\" type=\"text\" class=\"site-pass-input\" />\r\n    <button click.delegate=\"deleteSeed(site)\">Delete</button>\r\n  </div>\r\n  \r\n  <p>Here you can add new sites to generate passwords</p>\r\n  \r\n  <form role=\"form\" submit.delegate=\"addCustomSeedToList()\">\r\n    <label for=\"siteName\">Site name</label>\r\n    <input value.bind=\"customSite.displayName\" id=\"siteName\" type=\"text\" required/>\r\n    <label for=\"sitUrl\">Url</label>\r\n    <input value.bind=\"customSite.url\" id=\"siteUrl\" type=\"url\" />\r\n    <button type=\"submit\">Add Custom Site</button>\r\n  </form>\r\n  \r\n  <div if.bind=\"listHasChanged\">\r\n    <p>You can save your custom Sites List to your browser memory</p>\r\n    <button click.delegate=\"saveSeeds()\">Remember Custom List</button>\r\n  </div>\r\n</template>\r\n"; });
+define('services/spinner',["require", "exports"], function (require, exports) {
+    "use strict";
+    var Spinner = (function () {
+        function Spinner() {
+            this.active = 0;
+        }
+        Spinner.prototype.on = function () {
+            this.active++;
+        };
+        Spinner.prototype.off = function () {
+            this.active--;
+        };
+        return Spinner;
+    }());
+    exports.Spinner = Spinner;
+});
+
+define('text!app.html', ['module'], function(module) { module.exports = "<template>\r\n  <div show.bind=\"user.spinner.active\">\r\n    <div class='uil-ripple-css' style='transform:scale(0.64);'>\r\n      <div></div>\r\n      <div></div>\r\n    </div>\r\n  </div>\r\n  <div show.bind=\"!user.spinner.active\">\r\n    <p>\r\n      Using the same password for multiple email, shopping and social networking websites is risky, it means that a security breach\r\n      at one website will compromise all your accounts, possibly even leading to identity theft.\r\n    </p>\r\n    <p>\r\n      So, the idea is that you memorise just one, reasonably long/secure master password and use that to generate a set of non-dictionary\r\n      passwords. Copy and paste the new password(s) into the website and set your web browser to remember them.\r\n    </p>\r\n    <p>All the websites get different passwords, but you only have to remember one!</p>\r\n\r\n    <a href=\"javascript:void(0);\" click.delegate=\"user.login('google')\" if.bind=\"!user.isLoggedIn\">Login via Google</a>\r\n    <a href=\"javascript:void(0);\" click.delegate=\"user.login('twiter')\" if.bind=\"!user.isLoggedIn\">Login via Twitter</a>\r\n    <a href=\"javascript:void(0);\" click.delegate=\"user.login('facebook')\" if.bind=\"!user.isLoggedIn\">Login via Facebook</a>\r\n    <a href=\"javascript:void(0);\" click.delegate=\"user.logout()\" if.bind=\"user.isLoggedIn\">Logout</a>\r\n\r\n    <div class=\"profile\" if.bind=\"user.isLoggedIn && user\">\r\n      <h1>${user.userData.displayName}</h1>\r\n      <h2>${user.userData.email}</h2>\r\n      <img src.bind=\"user.userData.photo\" if.bind=\"user.userData.photo\">\r\n      <p>\r\n        <button click.delegate=\"firebase.writeUserTest(firebase.user.uid, firebase.user.displayName, firebase.user.email)\">Write test</button>\r\n      </p>\r\n    </div>\r\n\r\n    <form role=\"form\" submit.delegate=\"setVals()\">\r\n      <label for=\"mainPassBox\">Password</label>\r\n      <input type.bind=\"passwordType\" value.bind=\"myPassword\" id=\"mainPassBox\" />\r\n      <input type=\"checkbox\" checked.bind=\"isPasswordMasked\" id=\"isPassMaskCBox\" />\r\n      <label for=\"isPassMaskCBox\">show/hide Password</label>\r\n      <button>Set Paswords</button>\r\n    </form>\r\n\r\n    <div repeat.for=\"site of user.userData.seedList\">\r\n      <label for.bind=\"site.seed\">${site.displayName}</label>\r\n      <input id.bind=\"site.seed\" type=\"text\" class=\"site-pass-input\" />\r\n      <button click.delegate=\"deleteSeed(site)\">Delete</button>\r\n    </div>\r\n\r\n    <p>Here you can add new sites to generate passwords</p>\r\n\r\n    <form role=\"form\" submit.delegate=\"addCustomSeedToList()\">\r\n      <label for=\"siteName\">Site name</label>\r\n      <input value.bind=\"customSite.displayName\" id=\"siteName\" type=\"text\" required/>\r\n      <label for=\"sitUrl\">Url</label>\r\n      <input value.bind=\"customSite.url\" id=\"siteUrl\" type=\"url\" />\r\n      <button type=\"submit\">Add Custom Site</button>\r\n    </form>\r\n\r\n    <div if.bind=\"listHasChanged\">\r\n      <p>You can save your custom Sites List to your browser memory</p>\r\n      <button click.delegate=\"saveSeeds()\">Remember Custom List</button>\r\n    </div>\r\n  </div>\r\n\r\n</template>\r\n"; });
 //# sourceMappingURL=app-bundle.js.map
